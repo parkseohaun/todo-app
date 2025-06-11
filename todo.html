@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>To-Do 리스트</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center px-4 py-8">
+  <div class="w-full max-w-md bg-white shadow-xl rounded-xl p-6 space-y-4">
+    <h1 class="text-2xl font-bold text-center text-gray-800">📝 To-Do 리스트</h1>
+
+    <input
+      type="text"
+      id="todo-input"
+      placeholder="할 일을 입력하세요"
+      class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+    />
+
+    <div class="flex space-x-2">
+      <input type="text" id="year" placeholder="YYYY" maxlength="4"
+        class="w-1/3 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <input type="text" id="month" placeholder="MM" maxlength="2"
+        class="w-1/3 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <input type="text" id="day" placeholder="DD" maxlength="2"
+        class="w-1/3 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+    </div>
+
+    <p id="error-message" class="text-red-500 text-sm hidden">날짜 형식이 올바르지 않습니다.</p>
+
+    <button
+      onclick="addTodo()"
+      class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 rounded-md transition"
+    >
+      추가
+    </button>
+
+    <ul id="todo-list" class="space-y-2"></ul>
+  </div>
+
+  <script>
+    const todoInput = document.getElementById('todo-input');
+    const yearInput = document.getElementById('year');
+    const monthInput = document.getElementById('month');
+    const dayInput = document.getElementById('day');
+    const todoList = document.getElementById('todo-list');
+    const errorMessage = document.getElementById('error-message');
+
+    window.onload = () => {
+      const savedTodos = JSON.parse(localStorage.getItem('todos')) || [];
+      savedTodos.forEach(todo => renderTodo(todo.text, todo.dueDate, todo.done));
+    };
+
+    function getFormattedDate() {
+      const y = yearInput.value.padStart(4, '0');
+      const m = monthInput.value.padStart(2, '0');
+      const d = dayInput.value.padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function isValidDate(dateString) {
+      const regex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!regex.test(dateString)) return false;
+
+      const date = new Date(dateString);
+      return (
+        date instanceof Date &&
+        !isNaN(date.getTime()) &&
+        dateString === date.toISOString().split('T')[0]
+      );
+    }
+
+    function calculateDday(dateString) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const due = new Date(dateString);
+      due.setHours(0, 0, 0, 0);
+      const diffTime = due.getTime() - today.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays;
+    }
+
+    function addTodo() {
+      const text = todoInput.value.trim();
+      const dueDate = getFormattedDate();
+      if (!text) return;
+
+      if (!isValidDate(dueDate)) {
+        errorMessage.classList.remove('hidden');
+        return;
+      } else {
+        errorMessage.classList.add('hidden');
+      }
+
+      renderTodo(text, dueDate, false);
+      saveTodos();
+
+      todoInput.value = "";
+      yearInput.value = "";
+      monthInput.value = "";
+      dayInput.value = "";
+      todoInput.focus();
+    }
+
+    function renderTodo(text, dueDate, done) {
+      const li = document.createElement('li');
+      const dday = calculateDday(dueDate);
+      const ddayLabel = dday === 0 ? "🔥 D-Day" : (dday > 0 ? `D-${dday}` : `D+${Math.abs(dday)}`);
+
+      let bgClass = "bg-gray-50";
+      if (dday === 0) bgClass = "bg-red-100 border-l-4 border-red-500";
+      else if (dday === 1) bgClass = "bg-yellow-100 border-l-4 border-yellow-400";
+
+      li.className = `${bgClass} px-4 py-3 rounded-md shadow-sm border flex justify-between items-start flex-col sm:flex-row sm:items-center gap-2`;
+
+      li.innerHTML = `
+        <div class="flex-1 cursor-pointer">
+          <p class="font-medium ${done ? 'line-through text-gray-400' : ''}">${text}</p>
+          <p class="text-sm text-gray-600">마감일: ${dueDate} / ${ddayLabel}</p>
+        </div>
+        <button
+          class="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded"
+          onclick="removeTodo(this)"
+        >
+          삭제
+        </button>
+      `;
+
+      const textElement = li.querySelector('p.font-medium');
+      textElement.onclick = function () {
+        textElement.classList.toggle('line-through');
+        textElement.classList.toggle('text-gray-400');
+        saveTodos();
+      };
+
+      todoList.appendChild(li);
+      sortTodosByDday();
+    }
+
+    function removeTodo(button) {
+      button.parentElement.remove();
+      saveTodos();
+    }
+
+    function saveTodos() {
+      const todos = [];
+      const items = todoList.querySelectorAll('li');
+      items.forEach(li => {
+        const textElement = li.querySelector('p.font-medium');
+        const text = textElement?.innerText || "";
+        const dueText = li.querySelector('p.text-sm')?.innerText || "";
+        const dueDate = dueText.split(" ")[1];
+        const done = textElement.classList.contains('line-through');
+        todos.push({ text, dueDate, done });
+      });
+      localStorage.setItem('todos', JSON.stringify(todos));
+      sortTodosByDday();
+    }
+
+    function sortTodosByDday() {
+      const items = Array.from(todoList.querySelectorAll('li'));
+      items.sort((a, b) => {
+        const aDate = new Date(a.querySelector('p.text-sm').innerText.split(" ")[1]);
+        const bDate = new Date(b.querySelector('p.text-sm').innerText.split(" ")[1]);
+        return aDate - bDate;
+      });
+      todoList.innerHTML = "";
+      items.forEach(item => todoList.appendChild(item));
+    }
+
+    // 입력 제어
+    todoInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        yearInput.focus();
+      }
+    });
+
+    yearInput.addEventListener('input', () => {
+      if (yearInput.value.length === 4) {
+        monthInput.focus();
+      }
+    });
+
+    monthInput.addEventListener('input', () => {
+      if (monthInput.value.length === 2) {
+        dayInput.focus();
+      }
+    });
+
+    dayInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addTodo();
+      }
+    });
+  </script>
+</body>
+</html>

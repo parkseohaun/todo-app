@@ -14,4 +14,4 @@
 2. 날짜를 입력한 뒤 추가 버튼을 누르면 등록됩니다.
 
 ## 배포 주소
-👉 [https://yourname.github.io/todo-app](https://parkseohaun.github.io/todo-app/)
+👉 [https://parkseohaun.github.io/todo-app](https://parkseohaun.github.io/todo-app/)
